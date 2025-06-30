@@ -1,0 +1,16 @@
+# render.yaml
+services:
+  - type: web
+    name: fastapi-margadarshak
+    env: python
+    buildCommand: ""
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    runtime: python
+    region: oregon  # or change to your preferred region
+    branch: main
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: SECRET_KEY
+        value: your_secret_here  # optional, example of app-specific config
