@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import joblib
 import numpy as np
 
+
 model = joblib.load("mlr_model.pkl")
 
 app = FastAPI()
