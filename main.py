@@ -1,29 +1,36 @@
-# main.py
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import joblib
 import numpy as np
 import os
+import cloudpickle
 
-# Load the model
+# Load model using cloudpickle
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, "model.pkl")
-model = joblib.load(model_path)
 
-# Initialize FastAPI app
+try:
+    with open(model_path, "rb") as f:
+        model = cloudpickle.load(f)
+except Exception as e:
+    raise RuntimeError(f"❌ Error loading model.pkl: {e}")
+
 app = FastAPI()
 
-# Define expected input structure
-class InputData(BaseModel):
-    repeated_course: int       # 0 or 1
-    attendance: float          # e.g., 90
-    part_time_job: int         # 0 or 1
-    motivation_level: float    # 1 to 10
-    first_generation: int      # 0 or 1
-    friends_performance: float # 1 to 10
+# Root route (optional but helpful)
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."}
 
-# Endpoint for prediction
+# Define the input schema
+class InputData(BaseModel):
+    repeated_course: int
+    attendance: float
+    part_time_job: int
+    motivation_level: float
+    first_generation: int
+    friends_performance: float
+
+# Prediction endpoint
 @app.post("/predict")
 def predict(data: InputData):
     try:
