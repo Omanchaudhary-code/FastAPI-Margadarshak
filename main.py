@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import numpy as np
 import os
@@ -14,14 +15,26 @@ try:
 except Exception as e:
     raise RuntimeError(f"❌ Error loading model.pkl: {e}")
 
+# Initialize FastAPI app
 app = FastAPI()
 
-# Root route (optional but helpful)
+# ✅ Enable CORS (allow frontend to call this API)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change to your domain for production, e.g. ["https://yourfrontend.com"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Optional root route for testing
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."}
+    return {
+        "message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."
+    }
 
-# Define the input schema
+# ✅ Define input schema
 class InputData(BaseModel):
     repeated_course: int
     attendance: float
@@ -30,7 +43,7 @@ class InputData(BaseModel):
     first_generation: int
     friends_performance: float
 
-# Prediction endpoint
+# ✅ Prediction endpoint
 @app.post("/predict")
 def predict(data: InputData):
     try:
