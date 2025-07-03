@@ -21,7 +21,7 @@ app = FastAPI()
 # ✅ Enable CORS (allow frontend to call this API)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to your domain for production, e.g. ["https://yourfrontend.com"]
+    allow_origins=["https://preview--journey-forecast-tool.lovable.app"],  # Change to your domain for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,6 +56,11 @@ def predict(data: InputData):
             data.friends_performance
         ]])
         prediction = model.predict(features)[0]
-        return {"predicted_cgpa": round(prediction, 2)}
+
+        # Clamp to valid CGPA range (0.0–4.0) and round to 2 decimals
+        prediction = max(0.0, min(prediction, 4.0))
+        prediction = round(prediction, 2)
+
+        return {"predicted_cgpa": prediction}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
