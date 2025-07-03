@@ -18,23 +18,26 @@ except Exception as e:
 # Initialize FastAPI app
 app = FastAPI()
 
-# ✅ Enable CORS (allow frontend to call this API)
+# ✅ Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://preview--journey-forecast-tool.lovable.app"],  # Change to your domain for production
+    allow_origins=[
+        "https://preview--journey-forecast-tool.lovable.app",
+        "http://localhost:8000", 
+        "https://margadarshak.tech"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Optional root route for testing
 @app.get("/")
 def read_root():
     return {
         "message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."
     }
 
-# ✅ Define input schema
+# ✅ Input schema
 class InputData(BaseModel):
     repeated_course: int
     attendance: float
@@ -43,7 +46,34 @@ class InputData(BaseModel):
     first_generation: int
     friends_performance: float
 
-# ✅ Prediction endpoint
+# ✅ Recommendation logic
+def generate_recommendations(data: InputData, predicted_cgpa: float) -> list:
+    recs = []
+
+    if data.attendance < 70:
+        recs.append("✅ Try to attend more classes to stay on track academically.")
+    
+    if data.repeated_course == 1:
+        recs.append("📘 Focus on understanding the subjects you've repeated for better mastery.")
+    
+    if data.part_time_job == 1 and predicted_cgpa < 2.5:
+        recs.append("🕒 Consider adjusting your part-time work hours to reduce academic stress.")
+    
+    if data.motivation_level < 5:
+        recs.append("🔥 Boost your motivation by setting short-term goals and tracking progress.")
+    
+    if data.friends_performance < 2.5:
+        recs.append("👥 Surround yourself with academically focused peers to stay inspired.")
+
+    if predicted_cgpa >= 3.5:
+        recs.append("🎉 Great work! Keep up the consistent performance.")
+
+    if not recs:
+        recs.append("👍 You're doing well — keep going!")
+
+    return recs
+
+# ✅ Prediction endpoint with recommendation
 @app.post("/predict")
 def predict(data: InputData):
     try:
@@ -57,10 +87,15 @@ def predict(data: InputData):
         ]])
         prediction = model.predict(features)[0]
 
-        # Clamp to valid CGPA range (0.0–4.0) and round to 2 decimals
         prediction = max(0.0, min(prediction, 4.0))
         prediction = round(prediction, 2)
 
-        return {"predicted_cgpa": prediction}
+        recommendations = generate_recommendations(data, prediction)
+
+        return {
+            "predicted_cgpa": prediction,
+            "recommendations": recommendations
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
