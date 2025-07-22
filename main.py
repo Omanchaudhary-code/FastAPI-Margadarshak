@@ -11,11 +11,11 @@ import google.generativeai as genai
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# List available models - for debugging
+# Debug: List available models (fixed, no attribute error)
 available_models = genai.list_models()
 print("Available models:")
 for m in available_models:
-    print(m.name)
+    print(f"- {m.name}")
 
 # Load your prediction model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -63,7 +63,6 @@ class InputData(BaseModel):
     friends_performance: float
 
 def generate_recommendations(data, predicted_cgpa: float) -> list:
-    # ... (your existing recommendation code unchanged)
     recs = []
     quotes = {
         "attendance": "80% of success is showing up. – Woody Allen",
@@ -127,10 +126,8 @@ def predict(data: InputData):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- Fix below: replace "gemini-pro" with a valid model from your API ---
-
-# For example, if list_models showed "models/chat-bison-001", use that:
-VALID_GEMINI_MODEL = "models/chat-bison-001"  # Replace after you confirm from list_models output
+# TODO: Update this after checking printed available models above
+VALID_GEMINI_MODEL = "models/text-bison-001"  # Replace with valid model name from list_models output
 
 @app.post("/gemini/recommend")
 def gemini_recommend(data: InputData):
