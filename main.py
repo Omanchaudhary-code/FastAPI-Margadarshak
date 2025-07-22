@@ -13,9 +13,10 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Debug: List available models (fixed, no attribute error)
 available_models = genai.list_models()
-print("Available models:")
 for m in available_models:
-    print(f"- {m.name}")
+    print(vars(m))
+
+
 
 # Load your prediction model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -127,7 +128,7 @@ def predict(data: InputData):
         raise HTTPException(status_code=500, detail=str(e))
 
 # TODO: Update this after checking printed available models above
-VALID_GEMINI_MODEL = "models/text-bison-001"  # Replace with valid model name from list_models output
+VALID_GEMINI_MODEL = "models/gemma-3-27b-it"
 
 @app.post("/gemini/recommend")
 def gemini_recommend(data: InputData):
