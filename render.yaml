@@ -10,6 +10,6 @@ services:
     plan: free
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.8
+        value: 3.10.13   # ✅ safer & compatible with scientific libraries
       - key: GEMINI_API_KEY
         value: AIzaSyCkSCqSqnluDwcK7AHirH-_kU22D7aKvwk
