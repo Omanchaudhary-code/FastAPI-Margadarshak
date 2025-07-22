@@ -3,5 +3,8 @@ uvicorn
 joblib
 scikit-learn
 numpy
-pydantic
 pandas
+pydantic
+cloudpickle
+python-dotenv
+google-generativeai
