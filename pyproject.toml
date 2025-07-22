@@ -2,7 +2,9 @@
 name = "fastapi-margadarshak"
 version = "0.1.0"
 description = "FastAPI backend for Margadarshak"
-authors = ["Your Name <you@example.com>"]
+authors = ["228007_oman@kusom.edu.np"]
+package-mode = false
+
 
 [tool.poetry.dependencies]
 python = "^3.11"
