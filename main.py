@@ -45,7 +45,7 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."
+        "message": "Welcome to the CGPA Predictor API. Visit /docs to test the prediction endpoint."
     }
 
 class InputData(BaseModel):
@@ -90,7 +90,12 @@ async def generate_claude_recommendations(data, predicted_cgpa: float) -> str:
             headers=headers
         )
         result = response.json()
-        return result['choices'][0]['message']['content']
+
+    if 'choices' not in result:
+        raise HTTPException(status_code=500, detail=f"Invalid response from Claude: {result}")
+
+    return result['choices'][0]['message']['content']
+
 
 @app.post("/predict")
 async def predict(data: InputData):
