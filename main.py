@@ -45,7 +45,7 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to the CGPA Predictor API. Visit /docs to test the prediction endpoint."
+        "message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."
     }
 
 class InputData(BaseModel):
@@ -72,12 +72,12 @@ async def generate_claude_recommendations(data, predicted_cgpa: float) -> str:
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://margadarshak.tech",
+        "Referer": "https://margadarshak.tech",
         "X-Title": "Margadarshak Recommendations"
     }
 
     payload = {
-        "model": "anthropic/claude-3-haiku",
+        "model": "anthropic/claude-3.5-haiku",
         "messages": [
             {"role": "user", "content": prompt}
         ]
@@ -91,11 +91,10 @@ async def generate_claude_recommendations(data, predicted_cgpa: float) -> str:
         )
         result = response.json()
 
-    if 'choices' not in result:
-        raise HTTPException(status_code=500, detail=f"Invalid response from Claude: {result}")
-
-    return result['choices'][0]['message']['content']
-
+        try:
+            return result['choices'][0]['message']['content']
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"500: Invalid response from Claude: {result}")
 
 @app.post("/predict")
 async def predict(data: InputData):
