@@ -10,6 +10,8 @@ import httpx
 # Load environment variables
 load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+print("OPENROUTER_API_KEY:", OPENROUTER_API_KEY)
+
 
 # Load your prediction model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,17 +60,27 @@ class InputData(BaseModel):
 
 async def generate_claude_recommendations(data, predicted_cgpa: float) -> str:
     prompt = f"""
-    A student has a predicted CGPA of {predicted_cgpa}.
-    Their profile shows:
-    - Attendance: {data.attendance}%
-    - Repeated course: {'Yes' if data.repeated_course else 'No'}
-    - Part-time job: {'Yes' if data.part_time_job else 'No'}
-    - Motivation level: {data.motivation_level}/10
-    - First generation: {'Yes' if data.first_generation else 'No'}
-    - Peer performance: {data.friends_performance}/4
+You are an encouraging academic coach helping university students improve their performance.
 
-    Generate 2-3 short, practical and motivational recommendations to help the student improve.
-    """
+Here is a student's profile:
+- Predicted CGPA: {predicted_cgpa}
+- Attendance: {data.attendance}%
+- Repeated Course: {'Yes' if data.repeated_course else 'No'}
+- Part-time Job: {'Yes' if data.part_time_job else 'No'}
+- Motivation Level: {data.motivation_level}/10
+- First Generation Student: {'Yes' if data.first_generation else 'No'}
+- Peer Performance: {data.friends_performance}/4
+
+Write 3 short, motivational recommendations tailored to this student's challenges.
+
+Instructions:
+- Each recommendation should have a bold, engaging title (e.g., CGPA Recovery Plan)
+- Follow it with 1–2 sentences of specific, practical, and supportive advice
+- Keep each recommendation under 60 words
+- Do NOT use emojis or bullet points
+- Use a warm, professional tone that motivates the student
+"""
+
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
