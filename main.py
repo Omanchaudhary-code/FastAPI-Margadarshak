@@ -57,30 +57,28 @@ class InputData(BaseModel):
     motivation_level: float
     first_generation: int
     friends_performance: float
-
 async def generate_claude_recommendations(data, predicted_cgpa: float) -> str:
     prompt = f"""
-You are an encouraging academic coach helping university students improve their performance.
+You are an encouraging academic coach helping university students improve their academic performance.
 
 Here is a student's profile:
-- Predicted CGPA: {predicted_cgpa}
+- Predicted CGPA: {predicted_cgpa:.2f}
 - Attendance: {data.attendance}%
-- Repeated Course: {'Yes' if data.repeated_course else 'No'}
-- Part-time Job: {'Yes' if data.part_time_job else 'No'}
-- Motivation Level: {data.motivation_level}/10
-- First Generation Student: {'Yes' if data.first_generation else 'No'}
-- Peer Performance: {data.friends_performance}/4
+- Repeated a Course: {'Yes' if data.repeated_course else 'No'}
+- Has a Part-time Job: {'Yes' if data.part_time_job else 'No'}
+- Motivation Level (out of 10): {data.motivation_level}
+- First-generation College Student: {'Yes' if data.first_generation else 'No'}
+- Peer Performance (Average CGPA of Friends on a 4.0 Scale): {data.friends_performance}/4
 
-Write 3 short, motivational recommendations tailored to this student's challenges.
+Write 3 short, motivational recommendations tailored to this student's academic challenges and strengths.
 
 Instructions:
-- Each recommendation should have a bold, engaging title (e.g., CGPA Recovery Plan)
-- Follow it with 1–2 sentences of specific, practical, and supportive advice
+- Begin each recommendation with a bold, engaging title (e.g., Strong Start Strategy)
+- Follow with 1–2 concise sentences offering practical, supportive advice
 - Keep each recommendation under 60 words
-- Do NOT use emojis or bullet points
-- Use a warm, professional tone that motivates the student
+- Do NOT use emojis, slang, or bullet points
+- Use a warm, encouraging, and professional tone focused on growth and progress
 """
-
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -101,12 +99,13 @@ Instructions:
             json=payload,
             headers=headers
         )
-        result = response.json()
 
         try:
+            result = response.json()
             return result['choices'][0]['message']['content']
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"500: Invalid response from Claude: {result}")
+
 
 @app.post("/predict")
 async def predict(data: InputData):
