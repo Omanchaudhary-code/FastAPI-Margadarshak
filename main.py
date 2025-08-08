@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import numpy as np
@@ -7,24 +7,27 @@ import cloudpickle
 from dotenv import load_dotenv
 import httpx
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-print("OPENROUTER_API_KEY:", OPENROUTER_API_KEY)
+if not OPENROUTER_API_KEY:
+    raise RuntimeError("OPENROUTER_API_KEY environment variable is missing")
+print("OPENROUTER_API_KEY loaded")
 
-
-# Load your prediction model
+# Load your prediction model using cloudpickle
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, "model.pkl")
 
 try:
     with open(model_path, "rb") as f:
         model = cloudpickle.load(f)
+    print("✅ Model loaded successfully")
 except Exception as e:
     raise RuntimeError(f"❌ Error loading model.pkl: {e}")
 
-app = FastAPI()
+app = FastAPI(title="CGPA Predictor API")
 
+# Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -44,11 +47,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to the CGPA Predictor API 👋. Visit /docs to test the prediction endpoint."
+        "message": "Welcome to the CGPA Predictor API. Visit /docs to test the prediction endpoint."
     }
+
 
 class InputData(BaseModel):
     repeated_course: int
@@ -57,7 +62,9 @@ class InputData(BaseModel):
     motivation_level: float
     first_generation: int
     friends_performance: float
-async def generate_claude_recommendations(data, predicted_cgpa: float) -> str:
+
+
+async def generate_claude_recommendations(data: InputData, predicted_cgpa: float) -> str:
     prompt = f"""
 You are an encouraging academic coach helping university students improve their academic performance.
 
@@ -93,18 +100,27 @@ Instructions:
         ]
     }
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=15) as client:
         response = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             json=payload,
-            headers=headers
+            headers=headers,
         )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from OpenRouter API: {response.text}"
+            )
 
         try:
             result = response.json()
-            return result['choices'][0]['message']['content']
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"500: Invalid response from Claude: {result}")
+            return result["choices"][0]["message"]["content"]
+        except (KeyError, ValueError) as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Invalid response structure from Claude: {e} - Response text: {response.text}"
+            )
 
 
 @app.post("/predict")
@@ -118,13 +134,20 @@ async def predict(data: InputData):
             data.first_generation,
             data.friends_performance
         ]])
+
         prediction = model.predict(features)[0]
+
+        # Clamp prediction between 0 and 4 and round to 2 decimals
         prediction = max(0.0, min(prediction, 4.0))
         prediction = round(prediction, 2)
+
         recommendations = await generate_claude_recommendations(data, prediction)
+
         return {
             "predicted_cgpa": prediction,
-            "recommendations": recommendations
+            "recommendations": recommendations,
+            "model": "Monte Carlo v1.0"
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
