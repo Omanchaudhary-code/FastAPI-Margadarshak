@@ -82,7 +82,7 @@ Write 3 short, motivational recommendations tailored to this student's academic 
 Instructions:
 - Begin each recommendation with a bold, engaging title (e.g., Strong Start Strategy)
 - Follow with 1–2 concise sentences offering practical, supportive advice
-- Keep each recommendation under 60 words
+- Keep each recommendation under 40 words
 - Do NOT use emojis, slang, or bullet points
 - Use a warm, encouraging, and professional tone focused on growth and progress
 """
