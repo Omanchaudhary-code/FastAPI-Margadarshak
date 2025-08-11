@@ -77,14 +77,15 @@ Here is a student's profile:
 - First-generation College Student: {'Yes' if data.first_generation else 'No'}
 - Peer Performance (Average CGPA of Friends on a 4.0 Scale): {data.friends_performance}/4
 
-Write 3 short, motivational recommendations tailored to this student's academic challenges and strengths.
+Write exactly 3 short, motivational recommendations tailored to this student's academic challenges and strengths.
 
-Instructions:
-- Begin each recommendation with a bold, engaging title (e.g., Strong Start Strategy)
-- Follow with 1–2 concise sentences offering practical, supportive advice
-- Keep each recommendation under 40 words
-- Do NOT use emojis, slang, or bullet points
-- Use a warm, encouraging, and professional tone focused on growth and progress
+Formatting instructions:
+- Output in HTML format.
+- Each recommendation should start with: <b>Title</b><br/> followed by the advice.
+- Add a <br/><br/> after each recommendation for spacing.
+- Keep each recommendation under 40 words.
+- No emojis, no bullet points.
+- Tone: warm, encouraging, and professional.
 """
 
     headers = {
@@ -141,11 +142,12 @@ async def predict(data: InputData):
         prediction = max(0.0, min(prediction, 4.0))
         prediction = round(prediction, 2)
 
-        recommendations = await generate_claude_recommendations(data, prediction)
+        # Get HTML-formatted recommendations
+        recommendations_html = await generate_claude_recommendations(data, prediction)
 
         return {
             "predicted_cgpa": prediction,
-            "recommendations": recommendations,
+            "recommendations_html": recommendations_html,  # HTML version for PDF & frontend
             "model": "Monte Carlo v1.0"
         }
 
