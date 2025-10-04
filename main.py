@@ -1,14 +1,15 @@
-# main.py
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import numpy as np
 import pandas as pd
 import os
 import cloudpickle
 from dotenv import load_dotenv
 import random
+import requests
 
 # -----------------------------
 # Environment & Model Loading
@@ -24,6 +25,10 @@ try:
     print("✅ Model loaded successfully")
 except Exception as e:
     raise RuntimeError(f"❌ Error loading model.pkl: {e}")
+
+# OpenRouter API Key (from .env)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 app = FastAPI(title="CGPA Predictor API")
 
@@ -46,7 +51,7 @@ app.add_middleware(
         "http://127.0.0.1:8080",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -55,59 +60,22 @@ app.add_middleware(
 # -----------------------------
 ENC = {
     "attendance": {">90%": 4, "75-90%": 3, "50-75%": 2, "<75%": 1},
-
-    "program": {
-        "SOM": 1, "SOS": 2, "SOE": 3, "SOL": 4, "SMS": 5, "SOA": 6, "SOED": 7
-    },
-
-    "year": {
-        "1st year": 1, "2nd year": 2, "3rd year": 3, "4th year": 4, "5th year": 5, "Graduated": 6
-    },
-
-    "living_situation": {
-        "At home": 1, "Hostel": 2, "Rent": 3, "Alone": 4, "Other": 5
-    },
-
+    "program": {"SOM": 1, "SOS": 2, "SOE": 3, "SOL": 4, "SMS": 5, "SOA": 6, "SOED": 7},
+    "year": {"1st year": 1, "2nd year": 2, "3rd year": 3, "4th year": 4, "5th year": 5, "Graduated": 6},
+    "living_situation": {"At home": 1, "Hostel": 2, "Rent": 3, "Alone": 4, "Other": 5},
     "repeated_course": {"Yes": 1, "No": 0},
-
-    "study_hours": {
-        "<1": 1, "1-2": 2, "2-3": 3, "3-4": 4, ">4": 5
-    },
-
-    "agreement_1to5": {  # revision, rating, friend_circle, confidence, motivation
+    "study_hours": {"<1": 1, "1-2": 2, "2-3": 3, "3-4": 4, ">4": 5},
+    "agreement_1to5": {
         "Strongly disagree": 1, "Disagree": 2, "Neutral": 3, "Agree": 4, "Strongly agree": 5
     },
-
-    "rating": {  # faculty academic teaching capability
-        "Worst": 1, "Bad": 2, "Neutral": 3, "Good": 4, "Best": 5
-    },
-
-    "freq_0to3": {  # online, group_studies, help_with_teachers (mapped below), family_support alt uses 0..3 too
-        "Never": 0, "Rarely": 1, "Sometimes": 2, "Frequently": 3
-    },
-
-    "help_with_teachers": {
-        "No": 0, "Rarely": 1, "Sometimes": 2, "Yes, regularly": 3
-    },
-
-    "stress_level": {
-        "Not at all": 1, "Somewhat": 2, "Neutral": 3, "Moderate": 4, "Extremely": 5
-    },
-
-    "sleep": {
-        "<5": 1, "5-6": 2, "6-7": 3, "7-8": 4, ">8": 5
-    },
-
-    "family_support": {
-        "Never": 0, "Rarely": 1, "Sometimes": 2, "Always": 3
-    },
-
-    "friend_circle": {  # same as rating
-        "Worst": 1, "Bad": 2, "Neutral": 3, "Good": 4, "Best": 5
-    },
-
-    # Auto-filled pools
-    "income": [1, 2, 3, 4],  # <15k, 15-30k, 30-50k, 50k+
+    "rating": {"Worst": 1, "Bad": 2, "Neutral": 3, "Good": 4, "Best": 5},
+    "freq_0to3": {"Never": 0, "Rarely": 1, "Sometimes": 2, "Frequently": 3},
+    "help_with_teachers": {"No": 0, "Rarely": 1, "Sometimes": 2, "Yes, regularly": 3},
+    "stress_level": {"Not at all": 1, "Somewhat": 2, "Neutral": 3, "Moderate": 4, "Extremely": 5},
+    "sleep": {"<5": 1, "5-6": 2, "6-7": 3, "7-8": 4, ">8": 5},
+    "family_support": {"Never": 0, "Rarely": 1, "Sometimes": 2, "Always": 3},
+    "friend_circle": {"Worst": 1, "Bad": 2, "Neutral": 3, "Good": 4, "Best": 5},
+    "income": [1, 2, 3, 4],
     "first_gen": [0, 1],
     "part_time_job": [0, 1],
     "financial_pressure": [1, 2, 3, 4, 5],
@@ -116,7 +84,6 @@ ENC = {
     "motivation": [1, 2, 3, 4, 5],
 }
 
-# Weights for realistic randomness
 WEIGHTS = {
     "income": [0.20, 0.35, 0.30, 0.15],
     "first_gen": [0.6, 0.4],
@@ -127,7 +94,6 @@ WEIGHTS = {
     "motivation": [0.08, 0.17, 0.30, 0.28, 0.17],
 }
 
-# Final feature order expected by the model (23 features)
 FEATURE_ORDER = [
     "attendance", "program", "year", "living_situation", "repeated_course",
     "study_hours", "revision", "rating", "online", "group_studies",
@@ -138,7 +104,7 @@ FEATURE_ORDER = [
 ]
 
 # -----------------------------
-# Schemas (15 user-facing fields)
+# Schemas
 # -----------------------------
 class InputData(BaseModel):
     attendance: str
@@ -204,18 +170,17 @@ def autofill_features() -> dict:
 def compute_engagement_index(encoded: dict) -> float:
     def norm(v, vmin, vmax):
         return (v - vmin) / (vmax - vmin) if vmax > vmin else 0.0
-
-    study = norm(encoded["study_hours"], 1, 5)
-    revision = norm(encoded["revision"], 1, 5)
-    rating = norm(encoded["rating"], 1, 5)
-    online = norm(encoded["online"], 0, 3)
-    group = norm(encoded["group_studies"], 0, 3)
-    help_t = norm(encoded["help_with_teachers"], 0, 3)
-    conf = norm(encoded.get("confidence", 3), 1, 5)
-    motiv = norm(encoded.get("motivation", 3), 1, 5)
-    support = norm(encoded["family_support"], 0, 3)
-
-    vals = np.array([study, revision, rating, online, group, help_t, conf, motiv, support], dtype=float)
+    vals = np.array([
+        norm(encoded["study_hours"], 1, 5),
+        norm(encoded["revision"], 1, 5),
+        norm(encoded["rating"], 1, 5),
+        norm(encoded["online"], 0, 3),
+        norm(encoded["group_studies"], 0, 3),
+        norm(encoded["help_with_teachers"], 0, 3),
+        norm(encoded.get("confidence", 3), 1, 5),
+        norm(encoded.get("motivation", 3), 1, 5),
+        norm(encoded["family_support"], 0, 3),
+    ], dtype=float)
     weights = np.array([1.2, 1.1, 0.8, 0.6, 0.6, 0.8, 1.0, 1.1, 0.8], dtype=float)
     return float(np.clip(np.average(vals, weights=weights), 0.0, 1.0))
 
@@ -225,27 +190,61 @@ def build_feature_vector(user_in: InputData) -> pd.DataFrame:
     merged = {**enc15, **auto7}
     merged["engagement_index"] = compute_engagement_index({**enc15, **auto7})
     vector = {name: merged[name] for name in FEATURE_ORDER}
-    return pd.DataFrame([vector])  # <- ensures column names for sklearn
+    return pd.DataFrame([vector])
 
 def generate_general_recommendations(data: InputData) -> str:
     recs = []
-
     if data.attendance in ["<75%", "50-75%"]:
-        recs.append("<b>Boost Attendance</b><br/>Try to attend most classes; consistent presence helps learning.")
+        recs.append("📌 Boost Attendance: Try to attend more classes consistently.")
     else:
-        recs.append("<b>Maintain Attendance</b><br/>Good job attending classes regularly, keep up the consistency.")
-
+        recs.append("✅ Good Attendance: Keep maintaining consistency.")
     if data.study_hours in ["<1", "1-2"]:
-        recs.append("<b>Increase Study Hours</b><br/>Allocate focused study time daily to strengthen understanding of subjects.")
+        recs.append("📌 Increase Study Hours: Dedicate more focused time daily.")
     else:
-        recs.append("<b>Keep Study Routine</b><br/>Your current study schedule is solid, continue with regular practice.")
-
+        recs.append("✅ Good Study Routine: Continue with regular practice.")
     if data.repeated_course == "Yes":
-        recs.append("<b>Handle Repeated Courses</b><br/>Focus on mastering difficult subjects to avoid repeating courses in the future.")
+        recs.append("📌 Handle Repeated Courses: Focus on difficult subjects.")
     else:
-        recs.append("<b>Course Progress</b><br/>You are progressing well, continue reviewing material regularly.")
+        recs.append("✅ Progressing Well: Keep revising regularly.")
+    return "\n".join(recs)
 
-    return "<br/><br/>".join(recs)
+# -----------------------------
+# LLM Integration (with Fallback)
+# -----------------------------
+def get_recommendations(predicted_cgpa: float, data: InputData) -> dict:
+    general_recs = generate_general_recommendations(data)
+
+    if not OPENROUTER_API_KEY:
+        return {"source": "fallback", "recommendations": general_recs}
+
+    prompt = f"""
+    The student's predicted CGPA is {predicted_cgpa}.
+    Their inputs are: {data.dict()}.
+    Please provide 3-5 personalized, motivating academic recommendations in plain text.
+    Focus on practical, supportive, and encouraging advice.
+    """
+
+    try:
+        response = requests.post(
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "openai/gpt-4o-mini",  # You can change this model
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.7,
+            },
+            timeout=20
+        )
+        response.raise_for_status()
+        data_json = response.json()
+        ai_text = data_json["choices"][0]["message"]["content"].strip()
+        return {"source": "llm", "recommendations": ai_text}
+    except Exception as e:
+        print(f"⚠️ OpenRouter failed: {e}")
+        return {"source": "fallback", "recommendations": general_recs}
 
 # -----------------------------
 # Routes
@@ -253,30 +252,27 @@ def generate_general_recommendations(data: InputData) -> str:
 @app.get("/")
 def read_root():
     return {
-        "message": "Welcome to the CGPA Predictor API. Visit /docs to test the prediction endpoint.",
-        "expects_features": len(FEATURE_ORDER),
-        "user_facets": 15,
-        "auto_filled": 8,
-        "synthetic": "engagement_index",
+        "message": "Welcome to the CGPA Predictor API with AI fallback.",
+        "features": len(FEATURE_ORDER),
     }
 
 @app.post("/predict")
 async def predict(data: InputData):
     try:
-        features = build_feature_vector(data)   # pd.DataFrame with column names
+        features = build_feature_vector(data)
         prediction = float(model.predict(features)[0])
-        prediction = max(0.0, min(prediction, 4.0))
-        prediction = round(prediction, 2)
+        prediction = round(max(0.0, min(prediction, 4.0)), 2)
 
-        recommendations_html = generate_general_recommendations(data)
+        recommendations = get_recommendations(prediction, data)
 
         return {
             "predicted_cgpa": prediction,
-            "recommendations_html": recommendations_html,
-            "model": "Gradient Boosting v1.1 (15+auto)"
+            "recommendations": recommendations["recommendations"],
+            "recommendation_source": recommendations["source"],
+            "model": "Gradient Boosting v1.1 + OpenRouter AI"
         }
-
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
