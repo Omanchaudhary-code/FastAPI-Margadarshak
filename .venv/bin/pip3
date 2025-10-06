@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' "/Users/omanchaudhary/Fast API-Margadarshak/.venv/bin/python3.10" "$0" "$@"
+'''exec' "/Users/omanchaudhary/Fast API-Margadarshak/.venv/bin/python3.11" "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re

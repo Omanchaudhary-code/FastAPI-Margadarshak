@@ -38,17 +38,22 @@ app = FastAPI(title="CGPA Predictor API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://margadarshak.tech",
-        "https://www.margadarshak.tech",
-        "https://margapradarshak.netlify.app",
-        "https://preview--journey-forecast-tool.lovable.app",
-        "https://journey-forecast-tool.lovable.app",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8080",
+         # ✅ Production
+    "https://margadarshak.tech",
+    "https://www.margadarshak.tech",
+
+    # 🔍 Vercel preview / staging
+    "https://journey-forecast-tool-git-main-margadarshaks-projects.vercel.app",
+
+    # 🏡 Local development (to allow front + backend on local)
+    "http://localhost:3000",
+    "http://localhost:5173",    # common port for Vite
+    "http://localhost:8000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",
     ],
     allow_credentials=True,
     allow_methods=["*"],
