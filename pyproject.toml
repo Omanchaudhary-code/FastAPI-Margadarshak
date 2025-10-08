@@ -17,7 +17,8 @@ numpy = "^2.2.6"
 pydantic = "^1.10.11"
 python-dotenv = "^1.0.0"
 httpx = "^0.27.0"
-requests = "^2.32.3"   # ✅ Added requests
+requests = "^2.32.3"   # Added requests
+supabase = "^2.21.1"    #Added supabase also
 
 [build-system]
 requires = ["poetry-core"]
