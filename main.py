@@ -1,5 +1,3 @@
-
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -10,25 +8,37 @@ import cloudpickle
 from dotenv import load_dotenv
 import random
 import requests
+from datetime import datetime, timezone
+from supabase import create_client, Client
 
 # -----------------------------
-# Environment & Model Loading
+# Environment Setup
 # -----------------------------
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, "model.pkl")
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+supabase: Client | None = None
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    print("⚠️ Supabase credentials not found in environment variables.")
+
+# -----------------------------
+# Model Loading
+# -----------------------------
 try:
     with open(model_path, "rb") as f:
         model = cloudpickle.load(f)
     print("✅ Model loaded successfully")
 except Exception as e:
     raise RuntimeError(f"❌ Error loading model.pkl: {e}")
-
-# OpenRouter API Key (from .env)
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 app = FastAPI(title="CGPA Predictor API")
 
@@ -38,22 +48,14 @@ app = FastAPI(title="CGPA Predictor API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-         # ✅ Production
-    "https://margadarshak.tech",
-    "https://www.margadarshak.tech",
-
-    # 🔍 Vercel preview / staging
-    "https://journey-forecast-tool-git-main-margadarshaks-projects.vercel.app",
-
-    # 🏡 Local development (to allow front + backend on local)
-    "http://localhost:3000",
-    "http://localhost:5173",    # common port for Vite
-    "http://localhost:8000",
-    "http://localhost:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:8080",
+        "https://margadarshak.tech",
+        "https://www.margadarshak.tech",
+        "https://journey-forecast-tool-git-main-margadarshaks-projects.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -61,7 +63,7 @@ app.add_middleware(
 )
 
 # -----------------------------
-# Encodings
+# Encodings & Config
 # -----------------------------
 ENC = {
     "attendance": {">90%": 4, "75-90%": 3, "50-75%": 2, "<75%": 1},
@@ -80,13 +82,6 @@ ENC = {
     "sleep": {"<5": 1, "5-6": 2, "6-7": 3, "7-8": 4, ">8": 5},
     "family_support": {"Never": 0, "Rarely": 1, "Sometimes": 2, "Always": 3},
     "friend_circle": {"Worst": 1, "Bad": 2, "Neutral": 3, "Good": 4, "Best": 5},
-    "income": [1, 2, 3, 4],
-    "first_gen": [0, 1],
-    "part_time_job": [0, 1],
-    "financial_pressure": [1, 2, 3, 4, 5],
-    "family_responsibilities": [0, 1, 2, 3],
-    "confidence": [1, 2, 3, 4, 5],
-    "motivation": [1, 2, 3, 4, 5],
 }
 
 WEIGHTS = {
@@ -112,6 +107,7 @@ FEATURE_ORDER = [
 # Schemas
 # -----------------------------
 class InputData(BaseModel):
+    user_id: str
     attendance: str
     program: str
     year: str
@@ -163,13 +159,13 @@ def encode_user_inputs(d: InputData) -> dict:
 
 def autofill_features() -> dict:
     return {
-        "income": int(_choice(ENC["income"], WEIGHTS["income"])),
-        "first_gen": int(_choice(ENC["first_gen"], WEIGHTS["first_gen"])),
-        "part_time_job": int(_choice(ENC["part_time_job"], WEIGHTS["part_time_job"])),
-        "financial_pressure": int(_choice(ENC["financial_pressure"], WEIGHTS["financial_pressure"])),
-        "family_responsibilities": int(_choice(ENC["family_responsibilities"], WEIGHTS["family_responsibilities"])),
-        "confidence": int(_choice(ENC["confidence"], WEIGHTS["confidence"])),
-        "motivation": int(_choice(ENC["motivation"], WEIGHTS["motivation"])),
+        "income": int(_choice([1, 2, 3, 4], WEIGHTS["income"])),
+        "first_gen": int(_choice([0, 1], WEIGHTS["first_gen"])),
+        "part_time_job": int(_choice([0, 1], WEIGHTS["part_time_job"])),
+        "financial_pressure": int(_choice([1, 2, 3, 4, 5], WEIGHTS["financial_pressure"])),
+        "family_responsibilities": int(_choice([0, 1, 2, 3], WEIGHTS["family_responsibilities"])),
+        "confidence": int(_choice([1, 2, 3, 4, 5], WEIGHTS["confidence"])),
+        "motivation": int(_choice([1, 2, 3, 4, 5], WEIGHTS["motivation"])),
     }
 
 def compute_engagement_index(encoded: dict) -> float:
@@ -197,6 +193,26 @@ def build_feature_vector(user_in: InputData) -> pd.DataFrame:
     vector = {name: merged[name] for name in FEATURE_ORDER}
     return pd.DataFrame([vector])
 
+# -----------------------------
+# Supabase Limit Check
+# -----------------------------
+def check_daily_limit(user_id: str, limit: int = 3):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    start_of_day = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    res = (
+        supabase.table("assessments")
+        .select("id")
+        .eq("user_id", user_id)
+        .gte("created_at", start_of_day.isoformat())
+        .execute()
+    )
+    if len(res.data) >= limit:
+        raise HTTPException(status_code=403, detail="Daily limit reached (3 per day).")
+
+# -----------------------------
+# LLM Recommendation
+# -----------------------------
 def generate_general_recommendations(data: InputData) -> str:
     recs = []
     if data.attendance in ["<75%", "50-75%"]:
@@ -213,20 +229,15 @@ def generate_general_recommendations(data: InputData) -> str:
         recs.append("✅ Progressing Well: Keep revising regularly.")
     return "\n".join(recs)
 
-# -----------------------------
-# LLM Integration (with Fallback)
-# -----------------------------
 def get_recommendations(predicted_cgpa: float, data: InputData) -> dict:
     general_recs = generate_general_recommendations(data)
-
     if not OPENROUTER_API_KEY:
         return {"source": "fallback", "recommendations": general_recs}
 
     prompt = f"""
     The student's predicted CGPA is {predicted_cgpa}.
     Their inputs are: {data.dict()}.
-    Please provide 3-5 personalized, motivating academic recommendations in plain text.
-    Focus on practical, supportive, and encouraging advice.
+    Provide 3–5 short, supportive academic improvement tips.
     """
 
     try:
@@ -234,14 +245,14 @@ def get_recommendations(predicted_cgpa: float, data: InputData) -> dict:
             OPENROUTER_URL,
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             },
             json={
-                "model": "openai/gpt-4o-mini",  # You can change this model
+                "model": "openai/gpt-4o-mini",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
             },
-            timeout=20
+            timeout=20,
         )
         response.raise_for_status()
         data_json = response.json()
@@ -256,28 +267,40 @@ def get_recommendations(predicted_cgpa: float, data: InputData) -> dict:
 # -----------------------------
 @app.get("/")
 def read_root():
-    return {
-        "message": "Welcome to the CGPA Predictor API with AI fallback.",
-        "features": len(FEATURE_ORDER),
-    }
+    return {"message": "Welcome to Margadarshak CGPA Predictor API"}
 
 @app.post("/predict")
 async def predict(data: InputData):
     try:
+        # ✅ Step 1: Enforce daily usage limit
+        check_daily_limit(data.user_id)
+
+        # ✅ Step 2: Predict
         features = build_feature_vector(data)
         prediction = float(model.predict(features)[0])
         prediction = round(max(0.0, min(prediction, 4.0)), 2)
 
+        # ✅ Step 3: Generate recommendations
         recommendations = get_recommendations(prediction, data)
+
+        # ✅ Step 4: Log assessment in Supabase
+        if supabase:
+            supabase.table("assessments").insert(
+                {
+                    "user_id": data.user_id,
+                    "predicted_cgpa": prediction,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ).execute()
 
         return {
             "predicted_cgpa": prediction,
             "recommendations": recommendations["recommendations"],
             "recommendation_source": recommendations["source"],
-            "model": "Gradient Boosting v1.1 + OpenRouter AI"
+            "model": "Gradient Boosting v1.1 + OpenRouter AI",
         }
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
