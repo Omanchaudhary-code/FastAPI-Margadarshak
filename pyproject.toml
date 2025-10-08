@@ -7,18 +7,18 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
-fastapi = "^0.110.0"
-uvicorn = "^0.30.0"
+fastapi = "0.116.1"
+uvicorn = "0.35.0"
 scikit-learn = "^1.4.1"
 pandas = "^2.2.0"
 joblib = "^1.3.2"
 cloudpickle = "^3.1.1"
 numpy = "^2.2.6"
-pydantic = "1.10.24"
+pydantic = "2.11.7"
 python-dotenv = "^1.0.0"
 httpx = "^0.27.0"
 requests = "^2.32.3"   # Added requests
-supabase = "^2.21.1"    #Added supabase also
+supabase = "2.18.0"    #Added supabase also
 
 [build-system]
 requires = ["poetry-core"]
