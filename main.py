@@ -211,34 +211,139 @@ def check_daily_limit(user_id: str, limit: int = 3):
         raise HTTPException(status_code=403, detail="Daily limit reached (3 per day).")
 
 # -----------------------------
-# LLM Recommendation
+# Enhanced Recommendation System
 # -----------------------------
-def generate_general_recommendations(data: InputData) -> str:
+def generate_comprehensive_recommendations(predicted_cgpa: float, data: InputData) -> str:
+    """Generate detailed, personalized recommendations based on all student data."""
     recs = []
+    
+    # Performance tier assessment
+    if predicted_cgpa >= 3.5:
+        recs.append("🌟 **Excellent Performance**: You're on track for outstanding results!")
+    elif predicted_cgpa >= 3.0:
+        recs.append("✅ **Good Performance**: Solid foundation with room for excellence!")
+    elif predicted_cgpa >= 2.5:
+        recs.append("📈 **Moderate Performance**: Focus on key improvements to boost your CGPA.")
+    else:
+        recs.append("⚠️ **Needs Attention**: Let's work on strengthening your academic foundation.")
+    
+    # Attendance-based recommendations
     if data.attendance in ["<75%", "50-75%"]:
-        recs.append("📌 Boost Attendance: Try to attend more classes consistently.")
+        recs.append("📌 **Attendance Alert**: Low attendance significantly impacts learning. Aim for 85%+ attendance to stay engaged with coursework and build better understanding.")
+    elif data.attendance == "75-90%":
+        recs.append("👍 **Good Attendance**: You're consistent! Push to 90%+ to maximize classroom learning benefits.")
     else:
-        recs.append("✅ Good Attendance: Keep maintaining consistency.")
+        recs.append("⭐ **Excellent Attendance**: Keep up this consistency—it's a strong foundation for success.")
+    
+    # Study hours and habits
     if data.study_hours in ["<1", "1-2"]:
-        recs.append("📌 Increase Study Hours: Dedicate more focused time daily.")
+        recs.append("📚 **Increase Study Time**: Allocate 3-4 hours daily for focused study. Quality study time directly correlates with better grades.")
+    elif data.study_hours in ["2-3"]:
+        recs.append("📖 **Solid Study Routine**: Consider extending to 3-4 hours daily, especially before exams.")
     else:
-        recs.append("✅ Good Study Routine: Continue with regular practice.")
+        recs.append("💪 **Strong Study Commitment**: Excellent dedication! Ensure you're also balancing rest and breaks.")
+    
+    # Revision habits
+    if data.revision in ["Strongly disagree", "Disagree"]:
+        recs.append("🔄 **Revision is Key**: Regular revision (weekly/bi-weekly) helps retain concepts better. Create a revision schedule.")
+    elif data.revision == "Neutral":
+        recs.append("🔄 **Boost Revision**: Make revision a regular habit. Review notes within 24 hours of each class.")
+    
+    # Course repetition
     if data.repeated_course == "Yes":
-        recs.append("📌 Handle Repeated Courses: Focus on difficult subjects.")
+        recs.append("🎯 **Focus on Weak Areas**: Identify specific topics in repeated courses. Seek help from professors or tutors early.")
+    
+    # Learning resources
+    if data.online in ["Never", "Rarely"]:
+        recs.append("💻 **Leverage Online Resources**: Platforms like Khan Academy, Coursera, or YouTube can supplement your learning effectively.")
+    
+    if data.group_studies in ["Never", "Rarely"]:
+        recs.append("👥 **Consider Group Study**: Collaborative learning helps clarify doubts and exposes you to different perspectives.")
+    
+    # Teacher interaction
+    if data.help_with_teachers in ["No", "Rarely"]:
+        recs.append("👨‍🏫 **Engage with Teachers**: Don't hesitate to ask questions. Regular interaction with teachers can significantly improve understanding.")
+    
+    # Stress management
+    if data.stress_level in ["Moderate", "Extremely"]:
+        recs.append("🧘 **Manage Stress**: High stress affects performance. Practice meditation, exercise, or talk to a counselor. Mental health is crucial.")
+    
+    # Sleep patterns
+    if data.sleep in ["<5", "5-6"]:
+        recs.append("😴 **Prioritize Sleep**: Aim for 7-8 hours. Sleep deprivation reduces focus and memory retention significantly.")
+    elif data.sleep in ["6-7"]:
+        recs.append("😊 **Good Sleep Pattern**: Try to reach 7-8 hours for optimal cognitive function.")
     else:
-        recs.append("✅ Progressing Well: Keep revising regularly.")
-    return "\n".join(recs)
+        recs.append("✅ **Healthy Sleep**: Great job maintaining good sleep habits!")
+    
+    # Social support
+    if data.family_support in ["Never", "Rarely"]:
+        recs.append("💬 **Seek Support**: Talk to family, friends, or campus counselors. A support system is vital for academic success.")
+    
+    if data.friend_circle in ["Worst", "Bad"]:
+        recs.append("🤝 **Build Positive Connections**: Surround yourself with motivated peers. Your social circle influences your academic mindset.")
+    
+    # Living situation advice
+    if data.living_situation in ["Hostel", "Rent", "Alone"]:
+        recs.append("🏠 **Living Away from Home**: Create a conducive study environment. Maintain a routine and stay connected with family.")
+    
+    # Program-specific encouragement
+    program_map = {
+        "SOM": "Management", "SOS": "Science", "SOE": "Engineering",
+        "SOL": "Law", "SMS": "Medical Sciences", "SOA": "Arts", "SOED": "Education"
+    }
+    program_name = program_map.get(data.program, "your field")
+    recs.append(f"🎓 **{program_name} Student**: Focus on core concepts and practical applications in your field. Stay curious and engaged!")
+    
+    # Year-specific advice
+    if data.year in ["1st year", "2nd year"]:
+        recs.append("🌱 **Build Strong Foundations**: Early years are crucial. Master fundamentals now for easier advanced courses later.")
+    elif data.year in ["3rd year", "4th year"]:
+        recs.append("🚀 **Career Preparation**: Balance academics with skill development, internships, and networking for career readiness.")
+    
+    return "\n\n".join(recs)
 
 def get_recommendations(predicted_cgpa: float, data: InputData) -> dict:
-    general_recs = generate_general_recommendations(data)
+    """Get AI-powered personalized recommendations with fallback to comprehensive general recommendations."""
+    
+    # Generate comprehensive fallback recommendations
+    general_recs = generate_comprehensive_recommendations(predicted_cgpa, data)
+    
     if not OPENROUTER_API_KEY:
+        print("⚠️ OpenRouter API key not configured, using general recommendations")
         return {"source": "fallback", "recommendations": general_recs}
 
-    prompt = f"""
-    The student's predicted CGPA is {predicted_cgpa}.
-    Their inputs are: {data.dict()}.
-    Provide 3–5 short, supportive academic improvement tips.
-    """
+    # Enhanced prompt for AI recommendations
+    prompt = f"""You are an empathetic academic advisor helping a college student improve their performance.
+
+**Student Profile:**
+- Predicted CGPA: {predicted_cgpa}/4.0
+- Program: {data.program}
+- Year: {data.year}
+- Attendance: {data.attendance}
+- Study Hours: {data.study_hours}
+- Living Situation: {data.living_situation}
+- Repeated Course: {data.repeated_course}
+- Revision Habit: {data.revision}
+- Study Resources Rating: {data.rating}
+- Online Learning Usage: {data.online}
+- Group Study Frequency: {data.group_studies}
+- Teacher Interaction: {data.help_with_teachers}
+- Stress Level: {data.stress_level}
+- Sleep Hours: {data.sleep}
+- Family Support: {data.family_support}
+- Friend Circle Quality: {data.friend_circle}
+
+**Task:**
+Provide 5-7 personalized, actionable academic improvement recommendations that:
+1. Are warm, encouraging, and supportive in tone
+2. Address their specific weak areas based on the profile
+3. Acknowledge their strengths
+4. Include concrete, practical steps they can take immediately
+5. Consider their living situation, stress level, and support system
+6. Are formatted with emojis and clear sections for readability
+
+Make recommendations specific to their situation, not generic advice. Be understanding and motivational."""
 
     try:
         response = requests.post(
@@ -251,15 +356,28 @@ def get_recommendations(predicted_cgpa: float, data: InputData) -> dict:
                 "model": "openai/gpt-4o-mini",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
+                "max_tokens": 800,
             },
-            timeout=20,
+            timeout=8,  # 8 second timeout as requested
         )
         response.raise_for_status()
         data_json = response.json()
         ai_text = data_json["choices"][0]["message"]["content"].strip()
-        return {"source": "llm", "recommendations": ai_text}
+        
+        if ai_text:
+            return {"source": "llm", "recommendations": ai_text}
+        else:
+            print("⚠️ OpenRouter returned empty response, using general recommendations")
+            return {"source": "fallback", "recommendations": general_recs}
+            
+    except requests.exceptions.Timeout:
+        print("⚠️ OpenRouter request timed out after 8 seconds, using general recommendations")
+        return {"source": "fallback", "recommendations": general_recs}
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ OpenRouter request failed: {e}, using general recommendations")
+        return {"source": "fallback", "recommendations": general_recs}
     except Exception as e:
-        print(f"⚠️ OpenRouter failed: {e}")
+        print(f"⚠️ Unexpected error with OpenRouter: {e}, using general recommendations")
         return {"source": "fallback", "recommendations": general_recs}
 
 # -----------------------------
@@ -280,7 +398,7 @@ async def predict(data: InputData):
         prediction = float(model.predict(features)[0])
         prediction = round(max(0.0, min(prediction, 4.0)), 2)
 
-        # ✅ Step 3: Generate recommendations
+        # ✅ Step 3: Generate recommendations (with timeout and fallback)
         recommendations = get_recommendations(prediction, data)
 
         # ✅ Step 4: Log assessment in Supabase
