@@ -51,10 +51,9 @@ app.add_middleware(
         "https://margadarshak.tech",
         "https://www.margadarshak.tech",
         "https://journey-forecast-tool-git-main-margadarshaks-projects.vercel.app",
-        "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8000",
-        "http://127.0.0.1:3000",
+        "https://localhost:8080",
         "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
@@ -358,7 +357,7 @@ Make recommendations specific to their situation, not generic advice. Be underst
                 "temperature": 0.7,
                 "max_tokens": 800,
             },
-            timeout=8,  # 8 second timeout as requested
+            timeout=45,  # 8 second timeout as requested
         )
         response.raise_for_status()
         data_json = response.json()
