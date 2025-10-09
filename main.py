@@ -442,11 +442,11 @@ Remember: This student is seeking genuine help. Give them actionable wisdom that
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://margadarshak.tech",  # Optional but recommended
-                "X-Title": "Margadarshak CGPA Advisor",  # Optional but recommended
+                "HTTP-Referer": "https://margadarshak.tech",
+                "X-Title": "Margadarshak CGPA Advisor",
             },
             json={
-                "model": "openai/gpt-4o-mini",  # Cost-effective and fast
+                "model": "openai/gpt-4o-mini",
                 "messages": [
                     {
                         "role": "system",
@@ -460,7 +460,7 @@ Remember: This student is seeking genuine help. Give them actionable wisdom that
                 "temperature": 0.7,
                 "max_tokens": 1000,
             },
-            timeout=8,  # ✅ 8 SECOND TIMEOUT
+            timeout=8,
         )
         
         response.raise_for_status()
@@ -469,7 +469,7 @@ Remember: This student is seeking genuine help. Give them actionable wisdom that
         # Extract AI response
         ai_text = data_json.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         
-        if ai_text and len(ai_text) > 100:  # Ensure meaningful response
+        if ai_text and len(ai_text) > 100:
             print(f"✅ OpenRouter AI recommendation generated successfully ({len(ai_text)} chars)")
             return {"source": "ai", "recommendations": ai_text}
         else:
@@ -481,4 +481,51 @@ Remember: This student is seeking genuine help. Give them actionable wisdom that
         return {"source": "fallback", "recommendations": general_recs}
         
     except requests.exceptions.RequestException as e:
-        print
+        print(f"⚠️ OpenRouter request failed: {e} → Using comprehensive fallback recommendations")
+        return {"source": "fallback", "recommendations": general_recs}
+        
+    except Exception as e:
+        print(f"⚠️ Unexpected error with OpenRouter: {e} → Using comprehensive fallback recommendations")
+        return {"source": "fallback", "recommendations": general_recs}
+# -----------------------------
+# Routes
+# -----------------------------
+@app.get("/")
+def read_root():
+   return {"message": "Welcome to Margadarshak CGPA Predictor API"}
+
+@app.post("/predict")
+async def predict(data: InputData):
+   try:
+       # ✅ Step 1: Enforce daily usage limit
+       check_daily_limit(data.user_id)
+
+       # ✅ Step 2: Predict
+       features = build_feature_vector(data)
+       prediction = float(model.predict(features)[0])
+       prediction = round(max(0.0, min(prediction, 4.0)), 2)
+
+       # ✅ Step 3: Generate recommendations (with timeout and fallback)
+       recommendations = get_recommendations(prediction, data)
+
+       # ✅ Step 4: Log assessment in Supabase
+       if supabase:
+           supabase.table("assessments").insert(
+               {
+                   "user_id": data.user_id,
+                   "predicted_cgpa": prediction,
+                   "created_at": datetime.now(timezone.utc).isoformat(),
+               }
+           ).execute()
+
+       return {
+           "predicted_cgpa": prediction,
+           "recommendations": recommendations["recommendations"],
+           "recommendation_source": recommendations["source"],
+           "model": "Gradient Boosting v1.1 + OpenRouter AI",
+       }
+
+   except HTTPException:
+       raise
+   except Exception as e:
+       raise HTTPException(status_code=500, detail=str(e))
