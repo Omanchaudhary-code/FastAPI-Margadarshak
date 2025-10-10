@@ -6,7 +6,7 @@ authors = ["228007_oman@kusom.edu.np"]
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.10,<3.14"
 fastapi = "0.116.1"
 uvicorn = "0.35.0"
 scikit-learn = "^1.4.1"
